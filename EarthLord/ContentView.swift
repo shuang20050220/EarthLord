@@ -35,12 +35,24 @@ struct ContentView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Text("Developed by mandy")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial)
+                VStack(spacing: 12) {
+                    Text("Developed by mandy")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    NavigationLink(destination: TestView()) {
+                        Text("进入测试页")
+                            .font(.body)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(.ultraThinMaterial)
             }
         } detail: {
             Text("Select an item")
