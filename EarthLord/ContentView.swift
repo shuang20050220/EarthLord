@@ -34,6 +34,14 @@ struct ContentView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Text("Developed by mandy")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)
+            }
         } detail: {
             Text("Select an item")
         }
