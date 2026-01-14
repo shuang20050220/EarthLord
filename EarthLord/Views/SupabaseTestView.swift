@@ -146,7 +146,7 @@ struct SupabaseTestView: View {
         } else if errorString.contains("relation") && errorString.contains("does not exist") {
             // 表不存在错误，也说明连接成功
             debugLog += "[\(timestamp)] ✅ 连接成功（服务器已响应）\n"
-            debugLog += "[\(timestamp)] 数据库返回"表不存在"错误，\n"
+            debugLog += "[\(timestamp)] 数据库返回'表不存在'错误，\n"
             debugLog += "[\(timestamp)] 说明已成功连接到 Supabase 数据库。\n"
             connectionStatus = .success
         } else if errorString.contains("hostname") ||
