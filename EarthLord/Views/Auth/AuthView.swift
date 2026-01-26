@@ -564,7 +564,10 @@ struct AuthView: View {
 
             // Google 登录按钮
             Button {
-                showToast("Google 登录即将开放")
+                print("🔵 [AuthView] 点击了 Google 登录按钮")
+                Task {
+                    await authManager.signInWithGoogle()
+                }
             } label: {
                 HStack {
                     Image(systemName: "g.circle.fill")

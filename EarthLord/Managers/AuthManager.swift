@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import Supabase
 import AuthenticationServices
+import GoogleSignIn
 
 // MARK: - 认证管理器
 /// 地球新主游戏的认证管理器
@@ -381,15 +382,93 @@ final class AuthManager: ObservableObject {
         print("⚠️ Apple 登录尚未实现")
     }
 
+    /// Google Client ID（从 Google Cloud Console 获取）
+    private let googleClientID = "991972707945-33u58c8f7amka2v85ppinmpnuhhov79o.apps.googleusercontent.com"
+
     /// Google 登录
-    /// TODO: 实现 Sign in with Google
-    /// 需要配置 Google Cloud Console 和 Supabase Google OAuth
+    /// 使用 Google Sign-In SDK 获取 ID Token，然后通过 Supabase 验证
     func signInWithGoogle() async {
-        // TODO: 实现 Google 登录
-        // 1. 使用 Google Sign-In SDK 获取 ID Token
-        // 2. 调用 supabase.auth.signInWithIdToken(credentials:)
-        // 3. 处理登录结果
-        print("⚠️ Google 登录尚未实现")
+        print("🔵 [Google登录] 开始 Google 登录流程...")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // 步骤1：配置 Google Sign-In
+            print("🔵 [Google登录] 步骤1: 配置 Google Sign-In...")
+            let config = GIDConfiguration(clientID: googleClientID)
+            GIDSignIn.sharedInstance.configuration = config
+            print("✅ [Google登录] Google Sign-In 配置完成，Client ID: \(googleClientID.prefix(20))...")
+
+            // 步骤2：获取根视图控制器
+            print("🔵 [Google登录] 步骤2: 获取根视图控制器...")
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootViewController = windowScene.windows.first?.rootViewController else {
+                print("❌ [Google登录] 错误: 无法获取根视图控制器")
+                errorMessage = "无法启动 Google 登录"
+                isLoading = false
+                return
+            }
+            print("✅ [Google登录] 成功获取根视图控制器")
+
+            // 步骤3：调用 Google Sign-In
+            print("🔵 [Google登录] 步骤3: 调用 Google Sign-In SDK...")
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+            print("✅ [Google登录] Google Sign-In 成功")
+            print("🔵 [Google登录] 用户邮箱: \(result.user.profile?.email ?? "未知")")
+
+            // 步骤4：获取 ID Token
+            print("🔵 [Google登录] 步骤4: 获取 ID Token...")
+            guard let idToken = result.user.idToken?.tokenString else {
+                print("❌ [Google登录] 错误: 无法获取 ID Token")
+                errorMessage = "Google 登录失败：无法获取凭证"
+                isLoading = false
+                return
+            }
+            print("✅ [Google登录] 成功获取 ID Token")
+            print("🔵 [Google登录] ID Token 前20字符: \(String(idToken.prefix(20)))...")
+
+            // 步骤5：获取 Access Token
+            let accessToken = result.user.accessToken.tokenString
+            print("✅ [Google登录] 成功获取 Access Token")
+
+            // 步骤6：使用 Supabase 验证
+            print("🔵 [Google登录] 步骤6: 使用 Supabase 验证 ID Token...")
+            let session = try await supabase.auth.signInWithIdToken(
+                credentials: .init(
+                    provider: .google,
+                    idToken: idToken,
+                    accessToken: accessToken
+                )
+            )
+
+            // 登录成功
+            currentUser = session.user
+            isAuthenticated = true
+
+            print("✅ [Google登录] Supabase 验证成功！")
+            print("✅ [Google登录] 用户ID: \(session.user.id)")
+            print("✅ [Google登录] 用户邮箱: \(session.user.email ?? "未知")")
+
+        } catch let error as GIDSignInError {
+            // Google Sign-In 特定错误
+            print("❌ [Google登录] Google Sign-In 错误: \(error)")
+            switch error.code {
+            case .canceled:
+                print("ℹ️ [Google登录] 用户取消了登录")
+                errorMessage = nil  // 用户取消不显示错误
+            case .hasNoAuthInKeychain:
+                print("❌ [Google登录] Keychain 中没有认证信息")
+                errorMessage = "请重新登录 Google 账号"
+            default:
+                errorMessage = "Google 登录失败: \(error.localizedDescription)"
+            }
+        } catch {
+            print("❌ [Google登录] 登录失败: \(error)")
+            errorMessage = parseAuthError(error)
+        }
+
+        isLoading = false
+        print("🔵 [Google登录] 登录流程结束")
     }
 
     // MARK: - ==================== 其他方法 ====================
@@ -413,6 +492,108 @@ final class AuthManager: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    /// 删除账户
+    /// 调用边缘函数 delete-account 删除当前用户账户
+    /// - Returns: 是否删除成功
+    @discardableResult
+    func deleteAccount() async -> Bool {
+        print("🔴 [删除账户] 开始删除账户流程...")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // 步骤1：获取当前会话
+            print("🔴 [删除账户] 步骤1: 获取当前会话...")
+            let session = try await supabase.auth.session
+            print("✅ [删除账户] 成功获取会话，用户ID: \(session.user.id)")
+
+            // 调试：打印 token 的前后部分（不打印完整 token 以保护安全）
+            let token = session.accessToken
+            let tokenPrefix = String(token.prefix(20))
+            let tokenSuffix = String(token.suffix(20))
+            print("🔴 [删除账户] Token预览: \(tokenPrefix)...\(tokenSuffix)")
+            print("🔴 [删除账户] Token长度: \(token.count)")
+            print("🔴 [删除账户] Token过期时间: \(session.expiresAt ?? 0)")
+
+            // 步骤2：调用边缘函数
+            print("🔴 [删除账户] 步骤2: 调用 delete-account 边缘函数...")
+
+            // 定义响应结构
+            struct DeleteResponse: Decodable {
+                let success: Bool?
+                let error: String?
+                let message: String?
+            }
+
+            // 使用自定义解码器来处理响应，同时获取原始数据用于调试
+            // 注意：边缘函数需要手动传递 Authorization header
+            let deleteResponse: DeleteResponse = try await supabase.functions.invoke(
+                "delete-account",
+                options: .init(
+                    headers: ["Authorization": "Bearer \(session.accessToken)"],
+                    body: ["user_id": session.user.id.uuidString]
+                ),
+                decode: { data, response in
+                    // 打印原始响应用于调试
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        print("🔴 [删除账户] 原始响应: \(jsonString)")
+                    }
+                    print("🔴 [删除账户] HTTP状态码: \(response.statusCode)")
+
+                    // 解码响应
+                    let decoder = JSONDecoder()
+                    return try decoder.decode(DeleteResponse.self, from: data)
+                }
+            )
+
+            // 步骤3：检查响应
+            print("🔴 [删除账户] 步骤3: 检查响应...")
+            print("🔴 [删除账户] success=\(String(describing: deleteResponse.success)), error=\(String(describing: deleteResponse.error))")
+
+            if deleteResponse.success == true {
+                print("✅ [删除账户] 账户删除成功！")
+
+                // 步骤4：重置本地状态
+                print("🔴 [删除账户] 步骤4: 重置本地状态...")
+                resetState()
+
+                isLoading = false
+                return true
+            } else if let error = deleteResponse.error {
+                print("❌ [删除账户] 服务器返回错误: \(error)")
+                errorMessage = error
+                isLoading = false
+                return false
+            }
+
+            // 如果 success 不为 true 且没有错误信息，也算成功
+            print("✅ [删除账户] 账户删除完成")
+            resetState()
+            isLoading = false
+            return true
+
+        } catch let error as FunctionsError {
+            // 处理 FunctionsError 类型的错误
+            switch error {
+            case .httpError(let code, let data):
+                let responseStr = String(data: data, encoding: .utf8) ?? "无法解析"
+                print("❌ [删除账户] HTTP错误 \(code): \(responseStr)")
+                errorMessage = "删除失败 (HTTP \(code)): \(responseStr)"
+            case .relayError:
+                print("❌ [删除账户] 中继错误")
+                errorMessage = "网络中继错误，请稍后重试"
+            }
+            isLoading = false
+            return false
+        } catch {
+            print("❌ [删除账户] 删除失败: \(error)")
+            print("❌ [删除账户] 错误类型: \(type(of: error))")
+            errorMessage = "删除账户失败: \(error.localizedDescription)"
+            isLoading = false
+            return false
+        }
     }
 
     /// 检查会话状态

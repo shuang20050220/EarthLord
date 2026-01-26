@@ -9,9 +9,10 @@ import SwiftUI
 import Supabase
 
 // MARK: - Supabase 客户端初始化
+// 使用 legacy anon key (JWT 格式) 以确保边缘函数能正确验证用户身份
 let supabase = SupabaseClient(
     supabaseURL: URL(string: "https://rgekiyaidqvnjhdtltlb.supabase.co")!,
-    supabaseKey: "sb_publishable_zZ_gG1MZ8e4_KVeZhPRK5w_io0HfhTH"
+    supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJnZWtpeWFpZHF2bmpoZHRsdGxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNjQ5MzQsImV4cCI6MjA4Mzk0MDkzNH0.e_7E8ndXjbni__2U5wF6_T2iwOr3CRD6fQR8BlxPFO8"
 )
 
 struct SupabaseTestView: View {
