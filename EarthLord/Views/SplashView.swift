@@ -9,6 +9,9 @@ import SwiftUI
 
 /// 启动页视图
 struct SplashView: View {
+    /// 认证管理器
+    @ObservedObject private var authManager = AuthManager.shared
+
     /// 是否显示加载动画
     @State private var isAnimating = false
 
@@ -23,6 +26,9 @@ struct SplashView: View {
 
     /// 是否完成加载
     @Binding var isFinished: Bool
+
+    /// 会话检查是否完成
+    @State private var sessionCheckCompleted = false
 
     var body: some View {
         ZStack {
@@ -148,23 +154,60 @@ struct SplashView: View {
         }
     }
 
-    // MARK: - 模拟加载
+    // MARK: - 加载流程
 
     private func simulateLoading() {
-        // 模拟加载过程
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // 第一阶段：初始化
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            loadingText = "正在检查登录状态..."
+
+            // 检查会话状态
+            Task {
+                await authManager.checkSession()
+                sessionCheckCompleted = true
+            }
+        }
+
+        // 第二阶段：加载资源
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             loadingText = "正在加载资源..."
         }
 
+        // 第三阶段：准备就绪
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             loadingText = "准备就绪"
         }
 
-        // 完成加载，进入主界面
+        // 完成加载，进入下一页面
+        // 等待会话检查完成后再结束启动页
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                isFinished = true
+            // 确保会话检查已完成
+            if sessionCheckCompleted {
+                finishSplash()
+            } else {
+                // 如果会话检查还没完成，等待它完成
+                waitForSessionCheck()
             }
+        }
+    }
+
+    /// 等待会话检查完成
+    private func waitForSessionCheck() {
+        loadingText = "正在验证..."
+
+        // 每 0.1 秒检查一次
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+            if sessionCheckCompleted {
+                timer.invalidate()
+                finishSplash()
+            }
+        }
+    }
+
+    /// 完成启动页
+    private func finishSplash() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isFinished = true
         }
     }
 }
