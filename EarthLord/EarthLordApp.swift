@@ -11,6 +11,9 @@ import GoogleSignIn
 
 @main
 struct EarthLordApp: App {
+    /// 语言管理器 - 使用 @StateObject 确保整个 App 生命周期内保持同一实例
+    @StateObject private var languageManager = LanguageManager.shared
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -27,6 +30,8 @@ struct EarthLordApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // 应用语言设置 - 当 languageManager.selectedLanguage 变化时，整个 App 会重新渲染
+                .environment(\.locale, languageManager.currentLocale)
                 // 处理 Google 登录的 URL 回调
                 .onOpenURL { url in
                     print("🔵 [URL回调] 收到 URL: \(url)")

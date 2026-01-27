@@ -12,6 +12,9 @@ struct ProfileTabView: View {
     /// 认证管理器
     @ObservedObject private var authManager = AuthManager.shared
 
+    /// 语言管理器
+    @ObservedObject private var languageManager = LanguageManager.shared
+
     /// 是否显示登出确认弹窗
     @State private var showLogoutAlert = false
 
@@ -20,6 +23,9 @@ struct ProfileTabView: View {
 
     /// 删除账户确认输入文本
     @State private var deleteConfirmationText = ""
+
+    /// 是否显示语言选择弹窗
+    @State private var showLanguageSheet = false
 
     var body: some View {
         NavigationView {
@@ -45,7 +51,7 @@ struct ProfileTabView: View {
                     .padding()
                 }
             }
-            .navigationTitle("个人中心")
+            .navigationTitle(Text("个人中心"))  // 使用 Text() 以支持本地化
             .navigationBarTitleDisplayMode(.large)
         }
         // 登出确认弹窗
@@ -62,6 +68,10 @@ struct ProfileTabView: View {
         // 删除账户确认弹窗
         .sheet(isPresented: $showDeleteAccountSheet) {
             deleteAccountConfirmationSheet
+        }
+        // 语言选择弹窗
+        .sheet(isPresented: $showLanguageSheet) {
+            languageSelectionSheet
         }
     }
 
@@ -146,6 +156,19 @@ struct ProfileTabView: View {
     // MARK: - 菜单列表
     private var menuSection: some View {
         VStack(spacing: 0) {
+            // 语言设置
+            LanguageMenuRow(
+                icon: "globe",
+                title: "语言设置",  // 直接使用字符串字面量，SwiftUI 会自动作为 LocalizedStringKey 处理
+                currentLanguage: languageManager.selectedLanguage.displayName,
+                color: ApocalypseTheme.primary
+            ) {
+                showLanguageSheet = true
+            }
+
+            Divider()
+                .background(ApocalypseTheme.textMuted.opacity(0.2))
+
             // 账号设置
             ProfileMenuRow(icon: "gearshape.fill", title: "账号设置", color: ApocalypseTheme.info) {
                 // TODO: 跳转账号设置
@@ -342,12 +365,85 @@ struct ProfileTabView: View {
                 .foregroundColor(ApocalypseTheme.textSecondary)
         }
     }
+
+    // MARK: - 语言选择弹窗
+    private var languageSelectionSheet: some View {
+        NavigationView {
+            ZStack {
+                ApocalypseTheme.background.ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    // 语言选项列表
+                    VStack(spacing: 0) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Button {
+                                languageManager.setLanguage(language)
+                                // 延迟关闭以便用户看到选择效果
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    showLanguageSheet = false
+                                }
+                            } label: {
+                                HStack {
+                                    // 语言图标
+                                    Image(systemName: language == .system ? "iphone" : "globe")
+                                        .font(.title3)
+                                        .foregroundColor(ApocalypseTheme.primary)
+                                        .frame(width: 30)
+
+                                    // 语言名称
+                                    Text(language.localizedDisplayName)
+                                        .foregroundColor(ApocalypseTheme.textPrimary)
+
+                                    Spacer()
+
+                                    // 选中标记
+                                    if languageManager.selectedLanguage == language {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(ApocalypseTheme.success)
+                                    }
+                                }
+                                .padding()
+                                .background(
+                                    languageManager.selectedLanguage == language
+                                        ? ApocalypseTheme.primary.opacity(0.1)
+                                        : Color.clear
+                                )
+                            }
+
+                            if language != AppLanguage.allCases.last {
+                                Divider()
+                                    .background(ApocalypseTheme.textMuted.opacity(0.2))
+                            }
+                        }
+                    }
+                    .background(ApocalypseTheme.cardBackground)
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
+                    Spacer()
+                }
+                .padding(.top)
+            }
+            .navigationTitle(Text("选择语言"))  // 使用 Text() 以支持本地化
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showLanguageSheet = false
+                    } label: {
+                        Text("取消")  // 直接使用字符串字面量
+                    }
+                    .foregroundColor(ApocalypseTheme.primary)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 菜单行组件
 struct ProfileMenuRow: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey  // 改为 LocalizedStringKey 以支持本地化
     let color: Color
     let action: () -> Void
 
@@ -363,6 +459,41 @@ struct ProfileMenuRow: View {
                     .foregroundColor(ApocalypseTheme.textPrimary)
 
                 Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline)
+                    .foregroundColor(ApocalypseTheme.textMuted)
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - 语言菜单行组件
+struct LanguageMenuRow: View {
+    let icon: String
+    let title: LocalizedStringKey  // 改为 LocalizedStringKey 以支持本地化
+    let currentLanguage: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 30)
+
+                Text(title)
+                    .foregroundColor(ApocalypseTheme.textPrimary)
+
+                Spacer()
+
+                // 当前语言
+                Text(currentLanguage)
+                    .font(.subheadline)
+                    .foregroundColor(ApocalypseTheme.textSecondary)
 
                 Image(systemName: "chevron.right")
                     .font(.subheadline)
